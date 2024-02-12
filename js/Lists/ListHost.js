@@ -1,17 +1,3 @@
-// import * as React from 'react';
-
-// import ShopingList from './ShpoingList';
-// import SharedList from './SharedList';
-// import {Text, FlatList} from 'react-native';
-// import {SectionList} from 'react-native';
-// import {useSelector} from 'react-redux';
-// import ListItems from '../ListItem';
-
-// const ListView = () => {
-
-// };
-
-// export default ListView;
 import React, {useState} from 'react';
 import {View, Text, TouchableOpacity, StyleSheet} from 'react-native';
 import {ShopingList} from './ShpoingList';
@@ -66,13 +52,11 @@ const ListView = () => {
         {activeTab === 1 && (
           <View style={styles.screenContent}>
             <ShopingList />
-            {/* Add your Screen 1 content here */}
           </View>
         )}
         {activeTab === 2 && (
           <View style={styles.screenContent}>
             <SharedList />
-            {/* Add your Screen 2 content here */}
           </View>
         )}
       </View>

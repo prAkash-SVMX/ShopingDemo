@@ -1,6 +1,5 @@
 import {Text, FlatList} from 'react-native';
 
-
 import SharedList from './SharedList';
 //import {Text, FlatList} from 'react-native';
 import {SectionList} from 'react-native';
@@ -13,14 +12,12 @@ import {addShopingList} from '../Action/action';
 import ListItems from '../ListItem';
 import {useSelector, useDispatch} from 'react-redux';
 export const ShopingList = () => {
-  
   const rootstate = useSelector(state => state);
   const dispatch = useDispatch();
   const shopinglistdata = rootstate?.shopingList || [];
   console.log('rootsatet for list view', rootstate);
 
   useEffect(() => {
-    
     AsyncStorage.getItem('user')
       .then(user => JSON.parse(user))
       .then(res => {
@@ -32,7 +29,7 @@ export const ShopingList = () => {
         onValue(reference, snapshot => {
           const data = snapshot.val();
           console.log('data for the sharted list', data);
-          
+
           dispatch(addShopingList(data.shopingList));
         });
       });

@@ -1,7 +1,3 @@
-
-import '@firebase/auth';
-import '@firebase/firestore';
-
 export const firebaseConfig = {
   apiKey: 'AIzaSyBPnSPFDVhhT6_MAhnfX-XUviGjOQr9ZqE',
   authDomain: 'shopingdemo-545a2.firebaseapp.com',
@@ -11,6 +7,3 @@ export const firebaseConfig = {
   messagingSenderId: '230873722594',
   appId: '1:230873722594:ios:d43c06847bba948a2378bb',
 };
-
-
-
