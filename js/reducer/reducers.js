@@ -77,7 +77,7 @@ const rootReducer = (state = initialState, action) => {
     case ADD_SHARED_ITEM:
       return {
         ...state,
-        sharedList: [...state.sharedList, ...action.payload],
+        sharedList: [ ...action.payload],
       };
 
     default:

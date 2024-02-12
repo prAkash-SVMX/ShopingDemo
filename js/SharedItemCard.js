@@ -2,31 +2,77 @@ import React, {useState, useEffect} from 'react';
 import {View, Text, Image, TouchableOpacity, StyleSheet} from 'react-native';
 import {useSelector, useDispatch} from 'react-redux';
 import {deleteItem} from './Action/action';
-
+import {getDatabase, ref, set, onValue, remove, push} from 'firebase/database';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 const ListItemsForShare = ({item, index}) => {
+  const [user, setUser] = useState();
   const [isPending, setIsPending] = useState(item.pending);
   const [quantity, setQuantity] = useState(item.quantity || 1);
   const state = useSelector(state => state);
   const dispatch = useDispatch();
-  const onDelete = () => {
-    dispatch(deleteItem(index));
-  };
+    const onDelete = () => {
+      // Delete item from personal list
+      const personalListRef = ref(
+        getDatabase(),
+        `/userData/${user?.username}/sharedList/${index}`,
+      );
+      remove(personalListRef);
+    
+      // Delete item from shared user's list
+      const sharedUserListRef = ref(
+        getDatabase(),
+        `/userData/${item?.sharedwith}/sharedList/${index}`,
+      );
+      remove(sharedUserListRef);
+    
+      // Dispatch action to delete item from Redux state
+      dispatch(deleteItem(index));
+    };
+
+  useEffect(() => {
+    AsyncStorage.getItem('user')
+      .then(res => JSON.parse(res))
+      .then(user => {
+        setUser(user);
+      });
+  }, []);
 
   const toggleStatus = () => {
+    const updatedItem = {
+      ...state.shopingList[index],
+      bought: !isPending,
+      pending: isPending,
+    };
     setIsPending(!isPending);
-    console.log(index);
+    updateItemInFirebase(updatedItem);
   };
 
   const incrementQuantity = () => {
     setQuantity(quantity + 1);
+    updateItemInFirebase({...item, quantity: quantity + 1});
   };
 
   const decrementQuantity = () => {
     if (quantity > 1) {
       setQuantity(quantity - 1);
+      updateItemInFirebase({...item, quantity: quantity - 1});
     }
   };
-
+  const updateItemInFirebase = updatedItem => {
+    const savedusername = user?.username;
+    console.log('item', item);
+    const db = getDatabase();
+    const personalListRef = ref(
+      db,
+      `/userData/${savedusername}/sharedList/${index}`,
+    );
+    const sharedUserListRef = ref(
+      db,
+      `/userData/${item?.sharedwith}/sharedList/${index}`,
+    );
+    set(sharedUserListRef, updatedItem);
+    set(personalListRef, updatedItem);
+  };
   return (
     <TouchableOpacity
       style={styles.card}

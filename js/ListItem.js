@@ -17,7 +17,7 @@ import {getDatabase, ref, set, onValue, remove, push} from 'firebase/database';
 
 const ListItems = ({item, index}) => {
   const [isPending, setIsPending] = useState(item.pending);
-  const [quantity, setQuantity] = useState(item.quantity || 1); // Default quantity to 1 if not provided
+  const [quantity, setQuantity] = useState(item.quantity || 1);
   const state = useSelector(state => state);
   const [showModal, setShowModal] = useState(false);
   const [sharingusername, setUsername] = useState('');
@@ -56,84 +56,98 @@ const ListItems = ({item, index}) => {
     updateItemInFirebase({...item, quantity: quantity + 1});
   };
   const shareItem = () => {
-    //
-    let userexist = true;
+    var emaildata = {};
+    let shareWith;
+    if (sharingOption === 'email') {
+      const replacedStr = sharingusername.replace(/\./g, '^');
+      let db = getDatabase();
+      const emailref = ref(db, '/userByMail');
+
+      onValue(
+        emailref,
+        snapshot => {
+          const data = snapshot.val();
+          console.log('repla', replacedStr);
+          console.log('userdata', JSON.stringify(data));
+          emaildata = data[replacedStr];
+
+          // Perform any further processing here with emaildata
+          // For example, if (emaildata) { shareWith = emaildata; }
+          // Ensure that all necessary operations involving emaildata are within this block
+
+          console.log('sharing username', emaildata);
+        },
+        error => {
+          console.error('Error fetching email data:', error);
+        },
+      );
+    }
+    shareWith =
+      emaildata && sharingOption === 'email' ? emaildata : sharingusername;
+    const savedusername = user?.username;
+    let personalData;
+    let userexist;
+    let sharedUserData;
+    let db = getDatabase();
+    const sharedListRef = ref(db, `/userData/${shareWith}`);
+    if (sharingusername) {
+      onValue(sharedListRef, snapshot => {
+        sharedUserData = snapshot.val();
+        console.log('hiii', sharedUserData);
+        if (sharedUserData) {
+          userexist = true;
+          console.log(userexist);
+        } else {
+          userexist = false;
+          console.log(
+            'User being shared with does not exist in Firebase data.',
+          );
+        }
+      });
+    }
     const listItemObject = {
       ...state.shopingList[index],
       quanity: quantity,
       bought: !isPending,
       pending: isPending,
+      saharedby: savedusername,
+      sharedwith: shareWith,
     };
-    const savedusername = user?.username;
-    // console.log('indexdata', listItemObject);
-    let db = getDatabase();
+    if (userexist) {
+      const sharedList = sharedUserData?.sharedList?.dataItems || [];
+      const sharedListRef1 = ref(db, `/userData/${shareWith}/sharedList`);
+      sharedList.push(listItemObject);
+      set(sharedListRef, {
+        ...sharedUserData,
+        sharedList: {
+          dataItems: sharedList,
+        },
+      })
+        .then(() => {
+          dispatch(addSharedItem(sharedList));
+        })
+        .catch(err => console.error('got an error ', err));
+    }
+
     const personalListRef = ref(db, `/userData/${savedusername}`);
-    let personalData;
-    // Check if the user exists in Firebase data
-    console.log('indexdata', personalListRef);
     onValue(personalListRef, snapshot => {
       const userData = snapshot.val();
       if (userData) {
         // console.log('userData',userData.sharedList.dataItems.push({}));
         const personalList = userData?.sharedList?.dataItems || [];
         personalList.push(listItemObject);
-        console.log('indexdata', personalList);
         personalData = {
           ...userData,
           sharedList: {
             dataItems: [...personalList],
-            saharedby: savedusername,
-            sharedwith: sharingusername,
           },
         };
         dispatch(addSharedItem(personalList));
       } else {
-        // If user does not exist, show error or handle accordingly
         console.log('User does not exist in Firebase data.');
-        // You can display an error message or handle the situation as needed
       }
     });
-
-    let sharedData;
-    // Check if the user is sharing the item with someone
-    if (sharingusername) {
-      const sharedListRef = ref(db, `/userData/${sharingusername}`);
-      console.log('ref', sharedListRef);
-      //Check if the user being shared with exists in Firebase data
-      onValue(sharedListRef, snapshot => {
-        const sharedUserData = snapshot.val();
-        console.log('hiii', sharedUserData);
-        if (sharedUserData) {
-          // If user exists, add item to their shared list
-
-          const sharedList = sharedUserData?.sharedList || [];
-          sharedList.push(listItemObject);
-          console.log('sharedList', sharedList);
-          sharedData = {
-            ...sharedUserData,
-            sharedList: {
-              dataItems: [...sharedList],
-              saharedby: savedusername,
-              sharedwith: sharingusername,
-            },
-          };
-          // Optionally dispatch an action to update Redux state for shared list
-        } else {
-          userexist = false;
-          // If user does not exist, show error or handle accordingly
-          console.log(
-            'User being shared with does not exist in Firebase data.',
-          );
-          // You can display an error message or handle the situation as needed
-        }
-      });
-
-      set(sharedListRef, sharedData)
-        .then(() => {
-          console.log('shared');
-        })
-        .catch(err => console.error('got an error ', err));
-    }
+    set(personalListRef, personalData);
     setShowModal(false);
   };
 
