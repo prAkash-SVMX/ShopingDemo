@@ -25,7 +25,7 @@ export default function HomeScreen(props) {
   const dispatch = useDispatch();
   const navigation = useNavigation(); // Use useNavigation hook
   const [user, setUser] = useState(null);
-  
+
   useLayoutEffect(() => {
     props.navigation.setOptions({
       headerRight: () => <OptionMenu onSignOut={handleSignOut} />, // Pass handleSignOut function to OptionMenu
@@ -33,6 +33,7 @@ export default function HomeScreen(props) {
   }, [props.navigation]);
 
   useEffect(() => {
+    //  AsyncStorage.removeItem('user');
     AsyncStorage.getItem('user')
       .then(userData => {
         if (!userData) {

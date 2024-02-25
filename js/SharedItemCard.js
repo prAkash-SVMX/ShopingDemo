@@ -1,97 +1,181 @@
 import React, {useState, useEffect} from 'react';
-import {View, Text, Image, TouchableOpacity, StyleSheet} from 'react-native';
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+} from 'react-native';
 import {useSelector, useDispatch} from 'react-redux';
 import {deleteItem} from './Action/action';
-import {getDatabase, ref, set, onValue, remove, push} from 'firebase/database';
+import {getDatabase, ref, set, remove} from 'firebase/database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
 const ListItemsForShare = ({item, index}) => {
   const [user, setUser] = useState();
-  const [isPending, setIsPending] = useState(item.pending);
-  const [quantity, setQuantity] = useState(item.quantity || 1);
+  const [isPending, setIsPending] = useState(item?.pending);
+  const [quantity, setQuantity] = useState(item?.quantity || 1);
   const state = useSelector(state => state);
   const dispatch = useDispatch();
-    const onDelete = () => {
-      // Delete item from personal list
+  const [error, setError] = useState(null);
+  const [isBought, setBought] = useState(item.bought || false);
+  const [loadingDelete, setLoadingDelete] = useState(false);
+  const [loadingToggleStatus, setLoadingToggleStatus] = useState(false);
+  const [loadingIncrement, setLoadingIncrement] = useState(false);
+  const [loadingDecrement, setLoadingDecrement] = useState(false);
+
+  const onDelete = async () => {
+    try {
+      setLoadingDelete(true); // Start loading indicator
+
       const personalListRef = ref(
         getDatabase(),
-        `/userData/${user?.username}/sharedList/${index}`,
+        `/userData/${item?.saharedby}/sharedList/dataItems/${index}`,
       );
-      remove(personalListRef);
-    
-      // Delete item from shared user's list
+
       const sharedUserListRef = ref(
         getDatabase(),
-        `/userData/${item?.sharedwith}/sharedList/${index}`,
+        `/userData/${item?.sharedwith}/sharedList/dataItems/${index}`,
       );
-      remove(sharedUserListRef);
-    
-      // Dispatch action to delete item from Redux state
+
+      await Promise.all([remove(personalListRef), remove(sharedUserListRef)]);
       dispatch(deleteItem(index));
-    };
+
+      setLoadingDelete(false); // Stop loading indicator
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      setError(error);
+      setLoadingDelete(false); // Stop loading indicator in case of error
+    }
+  };
 
   useEffect(() => {
-    AsyncStorage.getItem('user')
-      .then(res => JSON.parse(res))
-      .then(user => {
-        setUser(user);
-      });
+    try {
+      AsyncStorage.getItem('user')
+        .then(res => JSON.parse(res))
+        .then(user => {
+          setUser(user);
+          console.log('user details for shared item', user);
+        });
+    } catch (error) {
+      console.error('Error fetching user:', error);
+      setError(error);
+    }
   }, []);
 
   const toggleStatus = () => {
-    const updatedItem = {
-      ...state.shopingList[index],
-      bought: !isPending,
-      pending: isPending,
-    };
-    setIsPending(!isPending);
-    updateItemInFirebase(updatedItem);
+    try {
+      setLoadingToggleStatus(true); // Start loading indicator
+
+      const updatedItem = {
+        ...state.shopingList[index],
+        bought: !isPending,
+        pending: isPending,
+      };
+      setIsPending(!isPending);
+      setBought(!isBought);
+      console.log('shared item from stae', JSON.stringify(item));
+      updateItemInFirebase({...item, bought: !isBought});
+
+      setLoadingToggleStatus(false); // Stop loading indicator
+    } catch (error) {
+      console.error('Error toggling status:', error);
+      setError(error);
+      setLoadingToggleStatus(false); // Stop loading indicator in case of error
+    }
   };
 
   const incrementQuantity = () => {
-    setQuantity(quantity + 1);
-    updateItemInFirebase({...item, quantity: quantity + 1});
+    try {
+      setLoadingIncrement(true); // Start loading indicator
+
+      setQuantity(quantity + 1);
+      updateItemInFirebase({...item, quantity: quantity + 1});
+
+      setLoadingIncrement(false); // Stop loading indicator
+    } catch (error) {
+      console.error('Error incrementing quantity:', error);
+      setError(error);
+      setLoadingIncrement(false); // Stop loading indicator in case of error
+    }
   };
 
   const decrementQuantity = () => {
-    if (quantity > 1) {
-      setQuantity(quantity - 1);
-      updateItemInFirebase({...item, quantity: quantity - 1});
+    try {
+      setLoadingDecrement(true); // Start loading indicator
+
+      if (quantity > 1) {
+        setQuantity(quantity - 1);
+        updateItemInFirebase({...item, quantity: quantity - 1});
+      }
+
+      setLoadingDecrement(false); // Stop loading indicator
+    } catch (error) {
+      console.error('Error decrementing quantity:', error);
+      setError(error);
+      setLoadingDecrement(false); // Stop loading indicator in case of error
     }
   };
-  const updateItemInFirebase = updatedItem => {
-    const savedusername = user?.username;
-    console.log('item', item);
-    const db = getDatabase();
-    const personalListRef = ref(
-      db,
-      `/userData/${savedusername}/sharedList/${index}`,
-    );
-    const sharedUserListRef = ref(
-      db,
-      `/userData/${item?.sharedwith}/sharedList/${index}`,
-    );
-    set(sharedUserListRef, updatedItem);
-    set(personalListRef, updatedItem);
+
+  const updateItemInFirebase = async updatedItem => {
+    try {
+      const savedusername = user?.username;
+      const db = getDatabase();
+      const personalListRef = ref(
+        db,
+        `/userData/${item?.saharedby}/sharedList/dataItems/${index}`,
+      );
+      const sharedUserListRef = ref(
+        db,
+        `/userData/${item?.sharedwith}/sharedList/dataItems/${index}`,
+      );
+      console.log('personalListRef', personalListRef);
+      console.log('shared', sharedUserListRef);
+
+      await Promise.all([
+        set(sharedUserListRef, updatedItem),
+        set(personalListRef, updatedItem),
+      ]);
+    } catch (error) {
+      console.error('Error updating item in Firebase:', error);
+      setError(error);
+    }
   };
+
+  if (error) {
+    return <Text>Error: {error.message}</Text>;
+  }
+
   return (
     <TouchableOpacity
       style={styles.card}
       onPress={() => console.log('Item clicked')}>
-      <Image source={{uri: item.thumbnail}} style={styles.image} />
+      {item && item.thumbnail && (
+        <Image source={{uri: item.thumbnail}} style={styles.image} />
+      )}
       <View style={styles.infoContainer}>
-        <Text style={styles.name}>{item.title}</Text>
-        <Text style={styles.price}>${item.price}</Text>
+        <Text style={styles.name}>{item && item.title}</Text>
+        <Text style={styles.price}>${item && item.price}</Text>
         <View style={styles.quantityContainer}>
           <TouchableOpacity
             style={styles.quantityButton}
             onPress={decrementQuantity}>
-            <Text style={styles.buttonText}>-</Text>
+            {loadingDecrement ? (
+              <ActivityIndicator color="#000" />
+            ) : (
+              <Text style={styles.buttonText}>-</Text>
+            )}
           </TouchableOpacity>
           <Text style={styles.quantityText}>{quantity}</Text>
           <TouchableOpacity
             style={styles.quantityButton}
             onPress={incrementQuantity}>
-            <Text style={styles.buttonText}>+</Text>
+            {loadingIncrement ? (
+              <ActivityIndicator color="#000" />
+            ) : (
+              <Text style={styles.buttonText}>+</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -99,17 +183,25 @@ const ListItemsForShare = ({item, index}) => {
         <TouchableOpacity
           style={[
             styles.flagButton,
-            {backgroundColor: !isPending ? '#00FF00' : '#FFD700'},
+            {backgroundColor: isBought ? '#00FF00' : '#FFD700'},
           ]}
           onPress={toggleStatus}>
-          <Text style={styles.buttonText}>
-            {!isPending ? 'Bought' : 'Pending'}
-          </Text>
+          {loadingToggleStatus ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>
+              {isBought ? 'Bought' : 'Pending'}
+            </Text>
+          )}
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.deleteButton}
           onPress={() => onDelete(item)}>
-          <Text style={styles.buttonText}>Delete</Text>
+          {loadingDelete ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Delete</Text>
+          )}
         </TouchableOpacity>
       </View>
     </TouchableOpacity>

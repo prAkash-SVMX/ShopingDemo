@@ -7,13 +7,14 @@ import {
   TouchableOpacity,
   StyleSheet,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useSelector, useDispatch} from 'react-redux';
 import {deleteItem, addSharedItem} from './Action/action';
 import {firebaseConfig} from './firebase/config';
 import {initializeApp} from 'firebase/app';
-import {getDatabase, ref, set, onValue, remove, push} from 'firebase/database';
+import {getDatabase, ref, set, get, onValue, remove} from 'firebase/database';
 
 const ListItems = ({item, index}) => {
   const [isPending, setIsPending] = useState(item.pending);
@@ -23,9 +24,11 @@ const ListItems = ({item, index}) => {
   const [sharingusername, setUsername] = useState('');
   const [user, setUser] = useState();
   const [sharingOption, setSharingOption] = useState('username');
-  const [firebaseUserData, setFirebasebaseData] = useState();
+  const [loading, setLoading] = useState(false); // Loading indicator state
+  const [error, setError] = useState(null); // Error state
   const dispatch = useDispatch();
-  let firebaseApp = initializeApp(firebaseConfig);
+  const firebaseApp = initializeApp(firebaseConfig);
+
   useEffect(() => {
     AsyncStorage.getItem('user')
       .then(res => JSON.parse(res))
@@ -33,128 +36,245 @@ const ListItems = ({item, index}) => {
         setUser(user);
       });
   }, []);
+
   const onDelete = () => {
-    dispatch(deleteItem(index));
-    deleteFromFirebase();
+    setLoading(true); // Start loading indicator
+    if (item) {
+      dispatch(deleteItem(index)); // Dispatch action to delete the item from Redux store
+      deleteFromFirebase() // Delete the item from Firebase
+        .then(() => setLoading(false)) // Stop loading indicator
+        .catch(err => {
+          setError(err);
+          setLoading(false);
+        });
+    }
   };
 
   const toggleStatus = () => {
+    setLoading(true); // Start loading indicator
     const updatedItem = {
       ...state.shopingList[index],
       bought: !isPending,
       pending: isPending,
     };
     setIsPending(!isPending); // Toggle the pending status locally
-    updateItemInFirebase(updatedItem); // Update the item in Firebase
+    updateItemInFirebase(updatedItem) // Update the item in Firebase
+      .then(() => setLoading(false)) // Stop loading indicator
+      .catch(err => {
+        setError(err);
+        setLoading(false);
+      });
   };
+
   const handleShare = () => {
     setShowModal(true);
   };
 
   const incrementQuantity = () => {
-    setQuantity(quantity + 1);
-    updateItemInFirebase({...item, quantity: quantity + 1});
-  };
-  const shareItem = () => {
-    var emaildata = {};
-    let shareWith;
-    if (sharingOption === 'email') {
-      const replacedStr = sharingusername.replace(/\./g, '^');
-      let db = getDatabase();
-      const emailref = ref(db, '/userByMail');
-
-      onValue(
-        emailref,
-        snapshot => {
-          const data = snapshot.val();
-          console.log('repla', replacedStr);
-          console.log('userdata', JSON.stringify(data));
-          emaildata = data[replacedStr];
-
-          // Perform any further processing here with emaildata
-          // For example, if (emaildata) { shareWith = emaildata; }
-          // Ensure that all necessary operations involving emaildata are within this block
-
-          console.log('sharing username', emaildata);
-        },
-        error => {
-          console.error('Error fetching email data:', error);
-        },
-      );
+    if (item) {
+      const updatedItem = {
+        ...item,
+        quantity: quantity + 1,
+      };
+      setQuantity(quantity + 1);
+      updateItemInFirebase(updatedItem);
     }
-    shareWith =
-      emaildata && sharingOption === 'email' ? emaildata : sharingusername;
-    const savedusername = user?.username;
-    let personalData;
-    let userexist;
-    let sharedUserData;
-    let db = getDatabase();
-    const sharedListRef = ref(db, `/userData/${shareWith}`);
-    if (sharingusername) {
-      onValue(sharedListRef, snapshot => {
-        sharedUserData = snapshot.val();
-        console.log('hiii', sharedUserData);
+  };
+
+  const shareItem = async () => {
+    setLoading(true); // Start loading indicator
+    try {
+      let emaildata;
+      let shareWith;
+
+      if (sharingOption === 'email') {
+        const replacedStr = sharingusername.replace(/\./g, '^');
+        const db = getDatabase();
+        const emailref = ref(db, '/userByMail');
+        const snapshot = await get(emailref);
+        const data = snapshot.val();
+        emaildata = data[replacedStr];
+        console.log('sharing username', emaildata);
+      }
+
+      shareWith =
+        emaildata && sharingOption === 'email' ? emaildata : sharingusername;
+      const savedusername = user?.username;
+
+      if (shareWith) {
+        const db = getDatabase();
+        const sharedListRef = ref(db, `/userData/${shareWith}`);
+        const sharedListSnapshot = await get(sharedListRef);
+        const sharedUserData = sharedListSnapshot.val();
+        console.log('sharedUserData',sharedUserData);
         if (sharedUserData) {
-          userexist = true;
-          console.log(userexist);
+          const listItemObject = {
+            // Assuming state.shopingList[index] contains the item to be shared
+            ...state.shopingList[index],
+            quanity: quantity,
+            bought: !isPending,
+            pending: isPending,
+            saharedby: savedusername,
+            sharedwith: shareWith,
+          };
+
+          const sharedList = sharedUserData.sharedList?.dataItems || [];
+          console.log('sharedList',sharedList);
+          sharedList.push(listItemObject);
+
+          const updatedSharedData = {
+            ...sharedUserData,
+            sharedList: {
+              dataItems: [...sharedList],
+            },
+          };
+
+          await set(sharedListRef, updatedSharedData);
+          dispatch(addSharedItem(sharedList));
+
+          const personalListRef = ref(db, `/userData/${savedusername}`);
+          const personalListSnapshot = await get(personalListRef);
+          const userData = personalListSnapshot.val();
+
+          if (userData) {
+            const personalList = userData.sharedList?.dataItems || [];
+            personalList.push(listItemObject);
+            const personalData = {
+              ...userData,
+              sharedList: {
+                dataItems: [...personalList],
+              },
+            };
+            dispatch(addSharedItem(personalList));
+            await set(personalListRef, personalData);
+          } else {
+            console.log('User does not exist in Firebase data.');
+          }
+          setLoading(false); // Stop loading indicator
         } else {
-          userexist = false;
           console.log(
             'User being shared with does not exist in Firebase data.',
           );
         }
-      });
-    }
-    const listItemObject = {
-      ...state.shopingList[index],
-      quanity: quantity,
-      bought: !isPending,
-      pending: isPending,
-      saharedby: savedusername,
-      sharedwith: shareWith,
-    };
-    if (userexist) {
-      const sharedList = sharedUserData?.sharedList?.dataItems || [];
-      const sharedListRef1 = ref(db, `/userData/${shareWith}/sharedList`);
-      sharedList.push(listItemObject);
-      set(sharedListRef, {
-        ...sharedUserData,
-        sharedList: {
-          dataItems: sharedList,
-        },
-      })
-        .then(() => {
-          dispatch(addSharedItem(sharedList));
-        })
-        .catch(err => console.error('got an error ', err));
+      }
+    } catch (error) {
+      console.error('Error sharing item:', error);
+      setError(error);
+      setLoading(false);
     }
 
-    const personalListRef = ref(db, `/userData/${savedusername}`);
-    onValue(personalListRef, snapshot => {
-      const userData = snapshot.val();
-      if (userData) {
-        // console.log('userData',userData.sharedList.dataItems.push({}));
-        const personalList = userData?.sharedList?.dataItems || [];
-        personalList.push(listItemObject);
-        personalData = {
-          ...userData,
-          sharedList: {
-            dataItems: [...personalList],
-          },
-        };
-        dispatch(addSharedItem(personalList));
-      } else {
-        console.log('User does not exist in Firebase data.');
-      }
-    });
-    set(personalListRef, personalData);
     setShowModal(false);
   };
 
+  //   const shareItem = () => {
+  //     setLoading(true); // Start loading indicator
+  //     var emaildata;
+  //     let shareWith;
+  //     if (sharingOption === 'email') {
+  //       const replacedStr = sharingusername.replace(/\./g, '^');
+  //       let db = getDatabase();
+  //       const emailref = ref(db, '/userByMail');
+
+  //       onValue(
+  //         emailref,
+  //         snapshot => {
+  //           const data = snapshot.val();
+  //           emaildata = data[replacedStr];
+  //           console.log('sharing username', emaildata);
+  //         },
+  //         error => {
+  //           console.error('Error fetching email data:', error);
+  //           setError(error);
+  //           setLoading(false);
+  //         },
+  //       );
+  //     }
+
+  //     shareWith =
+  //       emaildata && sharingOption === 'email' ? emaildata : sharingusername;
+  //     const savedusername = user?.username;
+  //     let personalData;
+  //     let userexist;
+  //     let sharedUserData;
+  //     let db = getDatabase();
+  //     const sharedListRef = ref(db, `/userData/${shareWith}`);
+  //     console.log('sharing ref', sharedListRef);
+  //     if (shareWith) {
+  //       onValue(sharedListRef, snapshot => {
+  //         sharedUserData = snapshot.val();
+  //         if (sharedUserData) {
+  //           userexist = true;
+  //           console.log(userexist);
+  //         } else {
+  //           userexist = false;
+  //           console.log(
+  //             'User being shared with does not exist in Firebase data.',
+  //           );
+  //         }
+  //       });
+  //     }
+  //     const listItemObject = {
+  //       ...state.shopingList[index],
+  //       quanity: quantity,
+  //       bought: !isPending,
+  //       pending: isPending,
+  //       saharedby: savedusername,
+  //       sharedwith: shareWith,
+  //     };
+  //  //   let sharedList;
+  //     console.log('listItem', listItemObject);
+  //     if (userexist) {
+  //       const sharedList = sharedUserData?.sharedList?.dataItems || [];
+  //       const sharedListRef1 = ref(db, `/userData/${shareWith}/sharedList`);
+  //       sharedList.push(listItemObject);
+  //       set(sharedListRef, {
+  //         ...sharedUserData,
+  //         sharedList: {
+  //           dataItems: sharedList,
+  //         },
+  //       })
+  //         .then(() => {
+  //           dispatch(addSharedItem(sharedList));
+  //           const personalListRef = ref(db, `/userData/${savedusername}`);
+  //           onValue(personalListRef, snapshot => {
+  //             const userData = snapshot.val();
+  //             if (userData) {
+  //               // console.log('userData',userData.sharedList.dataItems.push({}));
+  //               const personalList = userData?.sharedList?.dataItems || [];
+  //               personalList.push(listItemObject);
+  //               personalData = {
+  //                 ...userData,
+  //                 sharedList: {
+  //                   dataItems: [...personalList],
+  //                 },
+  //               };
+  //               dispatch(addSharedItem(personalList));
+  //             } else {
+  //               console.log('User does not exist in Firebase data.');
+  //             }
+  //           });
+  //           set(personalListRef, personalData);
+  //           setLoading(false); // Stop loading indicator
+  //         })
+  //         .catch(err => {
+  //           setError(err);
+  //           setLoading(false);
+  //         });
+  //     }
+
+  //     // const personalListRef = ref(db, `/userData/${savedusername}`);
+
+  //     setShowModal(false);
+  //   };
+
   const decrementQuantity = () => {
-    if (quantity > 1) {
+    if (item && quantity > 1) {
+      const updatedItem = {
+        ...item,
+        quantity: quantity - 1,
+      };
       setQuantity(quantity - 1);
-      updateItemInFirebase({...item, quantity: quantity - 1});
+      updateItemInFirebase(updatedItem);
     }
   };
 
@@ -165,7 +285,7 @@ const ListItems = ({item, index}) => {
       db,
       `/userData/${savedusername}/shopingList/${index}`,
     );
-    set(personalListRef, updatedItem);
+    return set(personalListRef, updatedItem);
   };
 
   const deleteFromFirebase = () => {
@@ -175,7 +295,7 @@ const ListItems = ({item, index}) => {
       db,
       `/userData/${savedusername}/shopingList/${index}`,
     );
-    remove(personalListRef);
+    return remove(personalListRef);
   };
 
   return (
@@ -221,6 +341,8 @@ const ListItems = ({item, index}) => {
           <Text style={styles.buttonText}>Delete</Text>
         </TouchableOpacity>
       </View>
+      {loading && <ActivityIndicator style={styles.loadingIndicator} />}
+      {error && <Text style={styles.errorText}>Error: {error.message}</Text>}
       {showModal && (
         <Modal
           animationType="slide"

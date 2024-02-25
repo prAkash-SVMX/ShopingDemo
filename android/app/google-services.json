@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "230873722594",
+    "firebase_url": "https://shopingdemo-545a2-default-rtdb.firebaseio.com",
+    "project_id": "shopingdemo-545a2",
+    "storage_bucket": "shopingdemo-545a2.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:230873722594:android:eca5b5604ba929952378bb",
+        "android_client_info": {
+          "package_name": "com.shopingdemo"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "230873722594-vq6gs8up6gv4dee6mr353bp4qn15ivnf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.shopingdemo",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "230873722594-n2a16ogv0pehigjque8b4te2iae8f3i3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDBtzM9ITHclE8JgxWjY3S0czmLygb-MtA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "230873722594-n2a16ogv0pehigjque8b4te2iae8f3i3.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "230873722594-223ihuflfv6bcom0f1prk9isri6ua4u2.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "org.reactjs.native.example.ShopingDemo"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

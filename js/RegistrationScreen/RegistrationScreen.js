@@ -47,7 +47,6 @@ export default function RegistrationScreen({navigation}) {
     setLoading(true); // Set loading to true on button press
     createUserWithEmailAndPassword(firebaseAuth, email, password)
       .then(userCredential => {
-        let emaildata = {};
         const user = userCredential.user;
         console.log('User signed up:', user);
         AsyncStorage.setItem(
@@ -62,13 +61,37 @@ export default function RegistrationScreen({navigation}) {
         let db = getDatabase();
 
         const emailref = ref(db, '/userByMail');
-        onValue(emailref, snapshot => {
-          emaildata = {...snapshot.val()};
-        });
+        // onValue(emailref, snapshot => {
+        //   emaildata = {...snapshot.val()};
+        // });
         const replacedStr = email.replace(/\./g, '^');
-        const newData = {};
-        newData[replacedStr] = username;
-        set(emailref, {...emaildata, ...newData});
+        // console.log('user email', emaildata);
+        // const newData = {...emaildata};
+        // newData[replacedStr] = username;
+        // set(emailref, {...newData});
+        get(emailref)
+          .then(snapshot => {
+            const existingData = snapshot.val() || {}; // If no data, default to empty object
+            const replacedStr = email.replace(/\./g, '^');
+
+            // Merge existing data with new data
+            const newData = {
+              ...existingData,
+              [replacedStr]: username,
+            };
+
+            // Set the merged data back to the database
+            set(emailref, newData)
+              .then(() => {
+                console.log('New data inserted successfully');
+              })
+              .catch(error => {
+                console.error('Error inserting new data:', error);
+              });
+          })
+          .catch(error => {
+            console.error('Error fetching existing data:', error);
+          });
         console.log('username', username);
         const refrence = ref(db, `/userData/${username}`);
         console.log('ref', refrence);

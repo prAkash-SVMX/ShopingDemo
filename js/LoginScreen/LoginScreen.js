@@ -12,7 +12,7 @@ import {getAuth, signInWithEmailAndPassword} from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {firebaseConfig} from '../firebase/config';
 import styles from './styles';
-import {onValue,getDatabase, ref} from 'firebase/database';
+import {onValue, getDatabase, ref, get} from 'firebase/database';
 
 // Import Toast component from react-native-toast-message
 import Toast from 'react-native-toast-message';
@@ -32,29 +32,33 @@ export default function LoginScreen({navigation}) {
     setLoading(true);
     signInWithEmailAndPassword(firebaseAuth, email, password)
       .then(userCredential => {
-        let emaildata = {};
+        let emaildata;
         const replacedStr = email.replace(/\./g, '^');
         let db = getDatabase();
         const emailref = ref(db, '/userByMail');
-        onValue(emailref, snapshot => {
-          emaildata = {...snapshot.val()};
-        });
-        console.log(
-          'user',
-          JSON.stringify({
-            ...userCredential.user,
-            email: email,
-            username: emaildata[replacedStr],
-          }),
-        );
-        AsyncStorage.setItem(
-          'user',
-          JSON.stringify({
-            ...userCredential.user,
-            email: email,
-            username: emaildata[replacedStr],
-          }),
-        );
+        get(emailref)
+          .then(snapshot => {
+            const existingData = snapshot.val() || {}; // If no data, default to empty object
+            const replacedStr = email.replace(/\./g, '^');
+            console.log('existing data', existingData);
+            emaildata = existingData[replacedStr];
+          })
+          .then(() => {
+            console.log(
+              'user',
+              JSON.stringify({
+                username: emaildata,
+              }),
+            );
+            AsyncStorage.setItem(
+              'user',
+              JSON.stringify({
+                email: email,
+                username: emaildata,
+              }),
+            );
+          });
+
         navigation.navigate('Home');
       })
       .catch(error => {
